@@ -1,6 +1,6 @@
 package com.ippontech.kafka.stores
 
-import com.ippontech.kafka.util.Stopwatch
+import com.ippontech.kafka.utils.Stopwatch
 //import com.typesafe.scalalogging.slf4j.LazyLogging
 import kafka.common.TopicAndPartition
 import kafka.utils.{ZKStringSerializer, ZkUtils}
