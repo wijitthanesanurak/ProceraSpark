@@ -180,13 +180,12 @@ System.out.println("Start doAnonymize")
 							//partitionBy("ld_date").
 							//save("/user/tapadm/wijit/procera.db/tbl_mobile/" + randomStr)
 //				  	  saveAsTable("procera_a.tbl_mobile")
+					
           val ld_date = encryptedMvDF.first().getString(44)
-					//encryptedMvDF.write.parquet("/user/tapadm/wijit/procera.db/tbl_mobile1/ld_date=" + 
-					//                    ld_date + "/"+time.toString()+"/")
 					encryptedMvDF.write.parquet("/user/tapadm/wijit/procera.db/tbl_mobile1/ld_date=" + 
-					                    ld_date + "/" + time1.toString() + "/")								
-//					System.out.println("End write")
-System.out.println("End Doannymize")													
+					                    ld_date + "/" + time1.toString() + "/")	
+					
+          
 				}
 				else {
 					//df_2.printSchema()
@@ -214,6 +213,7 @@ System.out.println("End Doannymize")
           is_anonymize: String) {
     val conf = new SparkConf().setAppName("SparkProcera")
     val sc = new SparkContext(conf)
+//sc.hadoopConfiguration.setBoolean("parquet.enable.summary-metadata", false)
     val ssc = new org.apache.spark.streaming.StreamingContext(sc, org.apache.spark.streaming.Seconds(interval.toInt))
 
     val sqlContext = new SQLContext(sc)
@@ -230,18 +230,16 @@ System.out.println("End Doannymize")
 		//val zkPath = "/kafka/kafka" + _zkPath
 		log.info("Zookeeper Path: " + zkPath)
     
-		val messages = KafkaSource.kafkaStream[String, String, StringDecoder, 
-		  StringDecoder](ssc, kafkaParams, new ZooKeeperOffsetsStore(zkHost, zkPath), topic_s)	
+//		val messages = KafkaSource.kafkaStream[String, String, StringDecoder, 
+//		  StringDecoder](ssc, kafkaParams, new ZooKeeperOffsetsStore(zkHost, zkPath), topic_s)	
 		
-		  
-		  
-//		val topics = List(topic_s).toSet
-//    val messages = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topics)
+		val topics = List(topic_s).toSet
+    val messages = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topics)
     val csv = messages.map(_._2).map(c => c.replaceAll("[\\r\\n]", "\0")).map(rdd => rdd.split(','))
 //		log.info("csv : " + csv.count())
     val csv_45 = csv.filter(m => m.size == 45)
   
-//    csv_45.foreachRDD(rdd=>rdd.count())
+    csv_45.foreachRDD(rdd=>rdd.count())
     //log.info("csv_45: " + csv_45.count())
     
 //    csv_45.foreachRDD((rdd,time) => doAnonymize(sqlContext, rdd, is_anonymize, time))
