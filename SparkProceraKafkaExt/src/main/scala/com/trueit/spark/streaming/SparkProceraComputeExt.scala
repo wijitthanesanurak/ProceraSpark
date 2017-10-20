@@ -108,10 +108,6 @@ object SparkProceraComputeExt {
 	  
   def doAnonymize(sqlContext:SQLContext, rdd: RDD[Array[String]], 
                   is_anonymize:String, time1:org.apache.spark.streaming.Time) = {
-System.out.println("Start doAnonymize")
-//System.out.println("rdd count: " + rdd.count())
-    //log.info("Start doAnonymize")
-    //log.info("rdd count: " + rdd.count())
     try {
       sqlContext.setConf("spark.sql.parquet.compression.codec", "snappy")
       import  sqlContext.implicits._
@@ -174,8 +170,7 @@ System.out.println("Start doAnonymize")
 					//encryptedMvDF.printSchema()
 //					encryptedMvDF.show()
 //					encryptedMvDF.groupBy("ld_date").count.show
-//					System.out.println("Before write")
-					val randomStr = UUID.randomUUID().toString()
+					//val randomStr = UUID.randomUUID().toString()
 					//encryptedMvDF.write.format("parquet").mode(org.apache.spark.sql.SaveMode.Append).
 							//partitionBy("ld_date").
 							//save("/user/tapadm/wijit/procera.db/tbl_mobile/" + randomStr)
@@ -183,19 +178,19 @@ System.out.println("Start doAnonymize")
 					
           val ld_date = encryptedMvDF.first().getString(44)
 					encryptedMvDF.write.parquet("/user/tapadm/wijit/procera.db/tbl_mobile1/ld_date=" + 
-					                    ld_date + "/" + time1.toString() + "/")	
-					
-          
+					                    ld_date + "/" + time1.toString() + "/")	          
 				}
 				else {
 					//df_2.printSchema()
 					//df_2.show()
 					//df_2.groupBy("ld_date").count.show
-					log.info("Before write")
-				  df_2.write.format("parquet").mode(org.apache.spark.sql.SaveMode.Append).
-							partitionBy("ld_date").
-							saveAsTable("procera_a.tbl_mobile")
-					log.info("End write")
+				  //df_2.write.format("parquet").mode(org.apache.spark.sql.SaveMode.Append).
+					//		partitionBy("ld_date").
+					//		saveAsTable("procera_a.tbl_mobile")
+          val ld_date = df_2.first().getString(44)
+					df_2.write.parquet("/user/tapadm/wijit/procera.db/tbl_mobile1/ld_date=" + 
+					                    ld_date + "/" + time1.toString() + "/")	          
+
 				}
 				
 				log.info("Finish DoAnonymize")
