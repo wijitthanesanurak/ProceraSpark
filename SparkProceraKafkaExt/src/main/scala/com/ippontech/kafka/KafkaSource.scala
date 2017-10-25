@@ -14,7 +14,10 @@ import org.apache.log4j.{Level, LogManager, PropertyConfigurator}
 //object KafkaSource extends LazyLogginfg {
 object KafkaSource {
   val log = LogManager.getRootLogger
-	def kafkaStream[K: ClassTag, V: ClassTag, KD <: Decoder[K] : ClassTag, VD <: Decoder[V] : ClassTag] (ssc: StreamingContext, kafkaParams: Map[String, String], offsetsStore: OffsetsStore, topic: String): InputDStream[(K, V)] = {
+  
+	def kafkaStream[K: ClassTag, V: ClassTag, KD <: Decoder[K] : ClassTag, VD <: Decoder[V] : ClassTag] 
+    (ssc: StreamingContext, kafkaParams: Map[String, String], offsetsStore: OffsetsStore, topic: String): 
+    InputDStream[(K, V)] = {
 
 		//val topics = Set(topic)
 		val topics = List(topic).toSet
@@ -32,15 +35,37 @@ object KafkaSource {
 			val messageHandler = (mmd: MessageAndMetadata[K, V]) => (mmd.key, mmd.message)
 
 			KafkaUtils.createDirectStream[K, V, KD, VD, (K, V)](ssc, kafkaParams, fromOffsets, messageHandler)
-			
 		}
-	// save the offsets
-	kafkaStream.foreachRDD(rdd => offsetsStore.saveOffsets(topic, rdd))
+	  // save the offsets
+	  kafkaStream.foreachRDD(rdd => offsetsStore.saveOffsets(topic, rdd))
 	
-	kafkaStream
+	  kafkaStream
+  }
+
+  // Kafka input stream
+  def kafkaStream[K: ClassTag, V: ClassTag, KD <: Decoder[K] : ClassTag, VD <: Decoder[V] : ClassTag] 
+  (ssc: StreamingContext, brokers: String, offsetsStore: OffsetsStore, topic: String): 
+  InputDStream[(K, V)] =
+  	kafkaStream(ssc, Map("metadata.broker.list" -> brokers), offsetsStore, topic)
+	
+  def kafkaStreamWriteOnly[K: ClassTag, V: ClassTag, KD <: Decoder[K] : ClassTag, VD <: Decoder[V] : ClassTag] 
+      (ssc: StreamingContext, kafkaParams: Map[String, String], offsetsStore: OffsetsStore, topic: String): 
+      InputDStream[(K, V)] = {
+  
+  		//val topics = Set(topic)
+  		val topics = List(topic).toSet
+  
+  		val storedOffsets = offsetsStore.readOffsets(topic)
+  
+  		log.info("kafkaStreamWriteOnly")
+  		
+  		val kafkaStream = KafkaUtils.createDirectStream[K, V, KD, VD](ssc, kafkaParams, topics)
+      
+  		// save the offsets
+  		kafkaStream.foreachRDD(rdd => offsetsStore.saveOffsets(topic, rdd))
+  	
+      kafkaStream
+  }	
 }
 
-// Kafka input stream
-def kafkaStream[K: ClassTag, V: ClassTag, KD <: Decoder[K] : ClassTag, VD <: Decoder[V] : ClassTag] (ssc: StreamingContext, brokers: String, offsetsStore: OffsetsStore, topic: String): InputDStream[(K, V)] =
-	kafkaStream(ssc, Map("metadata.broker.list" -> brokers), offsetsStore, topic)
-}
+

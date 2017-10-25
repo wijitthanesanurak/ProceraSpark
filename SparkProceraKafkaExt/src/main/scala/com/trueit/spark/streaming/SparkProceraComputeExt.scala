@@ -107,7 +107,8 @@ object SparkProceraComputeExt {
   }
 	  
   def doAnonymize(sqlContext:SQLContext, rdd: RDD[Array[String]], 
-                  is_anonymize:String, time1:org.apache.spark.streaming.Time) = {
+                  is_anonymize:String, time1:org.apache.spark.streaming.Time,
+                  parquetPath:String) = {
     try {
       sqlContext.setConf("spark.sql.parquet.compression.codec", "snappy")
       import  sqlContext.implicits._
@@ -168,16 +169,17 @@ object SparkProceraComputeExt {
 					val encryptedMvDF = encryptedNoMsisDnDF.withColumnRenamed("encrypted",
 													"proceramsisdn")
 					//encryptedMvDF.printSchema()
-//					encryptedMvDF.show()
-//					encryptedMvDF.groupBy("ld_date").count.show
+					//encryptedMvDF.show()
+          //encryptedMvDF.groupBy("ld_date").count.show
 					//val randomStr = UUID.randomUUID().toString()
 					//encryptedMvDF.write.format("parquet").mode(org.apache.spark.sql.SaveMode.Append).
-							//partitionBy("ld_date").
-							//save("/user/tapadm/wijit/procera.db/tbl_mobile/" + randomStr)
-//				  	  saveAsTable("procera_a.tbl_mobile")
+					//partitionBy("ld_date").
+					//save("/user/tapadm/wijit/procera.db/tbl_mobile/" + randomStr)
+          //saveAsTable("procera_a.tbl_mobile")
 					
           val ld_date = encryptedMvDF.first().getString(44)
-					encryptedMvDF.write.parquet("/user/tapadm/wijit/procera.db/tbl_mobile1/ld_date=" + 
+					//encryptedMvDF.write.parquet("/user/tapadm/wijit/procera.db/tbl_mobile1/ld_date=" +
+          encryptedMvDF.write.parquet(parquetPath + "/ld_date=" +
 					                    ld_date + "/" + time1.toString() + "/")	          
 				}
 				else {
@@ -188,9 +190,9 @@ object SparkProceraComputeExt {
 					//		partitionBy("ld_date").
 					//		saveAsTable("procera_a.tbl_mobile")
           val ld_date = df_2.first().getString(44)
-					df_2.write.parquet("/user/tapadm/wijit/procera.db/tbl_mobile1/ld_date=" + 
+					//df_2.write.parquet("/user/tapadm/wijit/procera.db/tbl_mobile1/ld_date=" + 
+					df_2.write.parquet(parquetPath + "/ld_date=" +    
 					                    ld_date + "/" + time1.toString() + "/")	          
-
 				}
 				
 				log.info("Finish DoAnonymize")
@@ -204,57 +206,75 @@ object SparkProceraComputeExt {
     }
   }
   
-  def run(kafkaParams: Map[String, String], topic_s: String, interval: Int,
+  def run(sc: SparkContext, kafkaParams: Map[String, String], topic_s: String, interval: Int,
           is_anonymize: String) {
-    val conf = new SparkConf().setAppName("SparkProcera")
-    val sc = new SparkContext(conf)
-//sc.hadoopConfiguration.setBoolean("parquet.enable.summary-metadata", false)
+//    val conf = new SparkConf().setAppName("SparkProcera")
+//    val sc = new SparkContext(conf)
+    val zookeepers = sc.getConf.get("spark.trueapp.zookeepers")
+    val proceraColumnNumber = sc.getConf.get("spark.trueapp.proceraColumnNumber")
+    val parquetPath = sc.getConf.get("spark.trueapp.parquetFilePath")
+    
+    log.info("Zookeepers : " + zookeepers)
+    log.info("Procera column number : " + proceraColumnNumber)
+    log.info("Parquet path : " + parquetPath)
+    
     val ssc = new org.apache.spark.streaming.StreamingContext(sc, org.apache.spark.streaming.Seconds(interval.toInt))
 
     val sqlContext = new SQLContext(sc)
     
-    //val zkGroupTopicDirs = new kafka.utils.ZKGroupTopicDirs("ProceraKafkaEtl", "test");
-    //val zkGroupTopicDirs = new kafka.utils.ZKGroupTopicDirs("ProceraKafkaEtl", topic_s);
     val zkGroupTopicDirs = new kafka.utils.ZKGroupTopicDirs("ProceraKafkaEtl", topic_s);
 
-    val zkHost = "mtg8-tmp-01.tap.true.th:2181,mtg8-tmp-02.tap.true.th:2181,mtg8-tmp-03.tap.true.th:2181/kafka"
-		//val zkHost = "localhost"
-    //val zkHost = "10.128.0.3"
-    //val zkHost = "172.16.2.110" 
+    //val zkHost = "mtg8-tmp-01.tap.true.th:2181,mtg8-tmp-02.tap.true.th:2181,mtg8-tmp-03.tap.true.th:2181/kafka"
+    val zkHost = zookeepers
 		val zkPath = zkGroupTopicDirs.consumerOffsetDir 
-		//val zkPath = "/kafka/kafka" + _zkPath
 		log.info("Zookeeper Path: " + zkPath)
     
-//		val messages = KafkaSource.kafkaStream[String, String, StringDecoder, 
-//		  StringDecoder](ssc, kafkaParams, new ZooKeeperOffsetsStore(zkHost, zkPath), topic_s)	
+		//val messages = KafkaSource.kafkaStream[String, String, StringDecoder, 
+		val messages = KafkaSource.kafkaStreamWriteOnly[String, String, StringDecoder, 
+		  StringDecoder](ssc, kafkaParams, new ZooKeeperOffsetsStore(zkHost, zkPath), topic_s)	
 		
-		val topics = List(topic_s).toSet
-    val messages = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topics)
-    val csv = messages.map(_._2).map(c => c.replaceAll("[\\r\\n]", "\0")).map(rdd => rdd.split(','))
-//		log.info("csv : " + csv.count())
-    val csv_45 = csv.filter(m => m.size == 45)
-  
+//		val topics = List(topic_s).toSet
+//    val messages = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topics)
+
+		val csv = messages.map(_._2).map(c => c.replaceAll("[\\r\\n]", "\0")).map(rdd => rdd.split(','))
+
+//  val csv_45 = csv.filter(m => m.size == 45)
+    val csv_45 = csv.filter(m=>m.size == proceraColumnNumber.toInt)
+
     csv_45.foreachRDD(rdd=>rdd.count())
-    //log.info("csv_45: " + csv_45.count())
     
 //    csv_45.foreachRDD((rdd,time) => doAnonymize(sqlContext, rdd, is_anonymize, time))
-    csv_45.foreachRDD((rdd,time) => if (rdd.count()>0) doAnonymize(sqlContext, rdd, is_anonymize, time) else log.warn(s"Batch $time has no transaction"))
-    //csv_45.foreachRDD(rdd=>rdd.foreach(println))
+    csv_45.foreachRDD((rdd,time) => if (rdd.count()>0) 
+      doAnonymize(sqlContext, rdd, is_anonymize, time, parquetPath) 
+      else log.warn(s"Batch $time has no transaction"))
+
 		ssc.start()
     ssc.awaitTermination()
   }
     
   def main(args: Array[String]) {
+  /*        
     if (args.length < 3) {
       System.err.println("\nUsage : DashboardCompute <topic-source> <topic-target> <interval> <anonymous,y/n>")
       System.err.println("Sample: DashboardCompute test-3 test55 5 y\n")
+      
       System.exit(1)
     }
-
-    val Array(topic_s, topic_d, interval, is_anonymize) = args
-
+  */  
+    val conf = new SparkConf().setAppName("SparkProcera")
+    val sc = new SparkContext(conf)
+    
+    //val Array(topic_s, topic_d, interval, is_anonymize) = args
+    val topic_s      = sc.getConf.get("spark.trueapp.sourceTopic")
+    val topic_d      = sc.getConf.get("spark.trueapp.destTopic")
+    val is_anonymize = sc.getConf.get("spark.trueapp.isAnonymize")
+    val interval     = sc.getConf.get("spark.trueapp.duration")
+    
+    val group_id     = sc.getConf.get("spark.trueapp.groupId")
+    val broker_list  = sc.getConf.get("spark.trueapp.broker_list")
+    
     // List of topics you want to listen for from Kafka
-    val topics = List(topic_s).toSet
+    //val topics = List(topic_s).toSet
 
     val kafkaParams = Map[String, String](
       //"metadata.broker.list" -> "10.128.0.3:9092",
@@ -262,9 +282,11 @@ object SparkProceraComputeExt {
       //"metadata.broker.list" -> "localhost:9092",
       //"metadata.broker.list" -> "cjkafdc01:9092,cjkafdc02:9092,cjkafdc03:9092",
       //"metadata.broker.list" -> "hw-ax-01.dc1.true.th:9092,hw-ax-02.dc1.true.th:9092",
-      "metadata.broker.list" -> "mtg8-tmp-01.tap.true.th:9092,mtg8-tmp-02.tap.true.th:9092,mtg8-tmp-03.tap.true.th:9092",
-      "group.id" -> "ProceraKafkaEtl",
-      "auto.offset.reset" -> "largest"
+      //"metadata.broker.list" -> "mtg8-tmp-01.tap.true.th:9092,mtg8-tmp-02.tap.true.th:9092,mtg8-tmp-03.tap.true.th:9092",
+      "metadata.broker.list" -> broker_list,
+      "group.id" -> group_id
+      //"group.id" -> "ProceraKafkaEtl",
+      //"auto.offset.reset" -> "largest"
       //"security.protocol" -> "SASL_PLAINTEXT"
     )
 
@@ -273,7 +295,7 @@ object SparkProceraComputeExt {
     log.info("Duration Time:" + interval + " sec.")
     log.info("Anonymous    :" + is_anonymize)
 
-    run(kafkaParams, topic_s, interval.toInt, is_anonymize)
+    run(sc, kafkaParams, topic_s, interval.toInt, is_anonymize)
     
     log.error("Spark ended")
 
